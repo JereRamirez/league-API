@@ -83,7 +83,6 @@ GET /api/v1/teams/{teamName}?resolveMembers={true|false}
 
 - Tests
 - Docker
-- If teams/player already exists in DB when importing league, then only update relationship without importing entities again
 - Limit frequency to the requests performed with a free-token
 
 ## Overview
