@@ -11,7 +11,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 @Service
 public class FootballDataConsumer {
@@ -21,6 +25,9 @@ public class FootballDataConsumer {
 
     private final RestTemplate restTemplate;
     private final HttpEntity<Void> requestEntity;
+    private final int maxRequestsPerMinute = 10;
+    private final BlockingQueue<Instant> requestQueue = new ArrayBlockingQueue<>(maxRequestsPerMinute);
+
 
     public FootballDataConsumer() {
         this.restTemplate = new RestTemplate();
@@ -31,6 +38,7 @@ public class FootballDataConsumer {
     }
 
     public CompetitionDto getCompetitionDetails(final String competitionCode) {
+        enforceRateLimit();
         final String apiUrl = baseUrl + competitionCode;
 
         final ResponseEntity<CompetitionDto> responseEntity = restTemplate.exchange(
@@ -40,6 +48,7 @@ public class FootballDataConsumer {
     }
 
     public List<TeamDto> getTeamsForCompetition(final String competitionCode) {
+        enforceRateLimit();
         final String apiUrl = baseUrl + competitionCode + "/teams";
 
         final ResponseEntity<TeamResponseDto> responseEntity = restTemplate.exchange(
@@ -47,6 +56,21 @@ public class FootballDataConsumer {
 
 
         return responseEntity.getBody().teams();
+    }
+
+    private void enforceRateLimit() {
+        final Instant now = Instant.now();
+        requestQueue.removeIf(token -> Duration.between(token, now).toMinutes() >= 1);
+
+        while (requestQueue.size() >= maxRequestsPerMinute) {
+            try {
+                Thread.sleep(1000); // Wait for 1 second
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        requestQueue.offer(now);
     }
 
 }
